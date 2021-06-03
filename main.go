@@ -127,8 +127,11 @@ func main() {
 		ConsensusScheme: idx.Config.ConsensusScheme,
 	})
 
-	if err := idx.Start(ctx); err != nil {
-		log.L().Fatal("Failed to start the indexer", zap.Error(err))
+	readonly := os.Getenv("READ_ONLY")
+	if readonly != "true" {
+		if err := idx.Start(ctx); err != nil {
+			log.L().Fatal("Failed to start the indexer", zap.Error(err))
+		}
 	}
 
 	defer func() {
