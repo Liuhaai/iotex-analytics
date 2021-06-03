@@ -132,6 +132,10 @@ func main() {
 		if err := idx.Start(ctx); err != nil {
 			log.L().Fatal("Failed to start the indexer", zap.Error(err))
 		}
+	} else {
+		if err := idx.Store.Start(ctx); err != nil {
+			log.L().Fatal("Failed to start the indexer store", zap.Error(err))
+		}
 	}
 
 	defer func() {
