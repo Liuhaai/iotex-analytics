@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"reflect"
 	"time"
 
@@ -132,30 +133,33 @@ func (idx *Indexer) Start(ctx context.Context) error {
 	}
 	tipHeight := getChainMetaRes.GetChainMeta().GetHeight()
 
-	if err := idx.IndexInBatch(ctx, tipHeight); err != nil {
-		return errors.Wrap(err, "failed to index blocks in batch")
-	}
-
-	log.L().Info("Subscribing to new coming blocks")
-	heightChan := make(chan uint64)
-	reportChan := make(chan error)
-	go func() {
-		for {
-			select {
-			case <-idx.terminate:
-				idx.terminate <- true
-				return
-			case tipHeight := <-heightChan:
-				// index blocks up to this height
-				if err := idx.IndexInBatch(ctx, tipHeight); err != nil {
-					log.L().Error("failed to index blocks in batch", zap.Error(err))
-				}
-			case err := <-reportChan:
-				log.L().Error("something goes wrong", zap.Error(err))
-			}
+	readonly := os.Getenv("READ_ONLY")
+	if readonly != "true" {
+		if err := idx.IndexInBatch(ctx, tipHeight); err != nil {
+			return errors.Wrap(err, "failed to index blocks in batch")
 		}
-	}()
-	idx.SubscribeNewBlock(chainClient, heightChan, reportChan, idx.terminate)
+
+		log.L().Info("Subscribing to new coming blocks")
+		heightChan := make(chan uint64)
+		reportChan := make(chan error)
+		go func() {
+			for {
+				select {
+				case <-idx.terminate:
+					idx.terminate <- true
+					return
+				case tipHeight := <-heightChan:
+					// index blocks up to this height
+					if err := idx.IndexInBatch(ctx, tipHeight); err != nil {
+						log.L().Error("failed to index blocks in batch", zap.Error(err))
+					}
+				case err := <-reportChan:
+					log.L().Error("something goes wrong", zap.Error(err))
+				}
+			}
+		}()
+		idx.SubscribeNewBlock(chainClient, heightChan, reportChan, idx.terminate)
+	}
 	return nil
 }
 
